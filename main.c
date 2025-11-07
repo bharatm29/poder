@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <raylib.h>
+#include <raymath.h>
 
 /*
  * Critical Chunks
@@ -256,12 +257,25 @@ int main() {
 
     SetTraceLogLevel(LOG_ERROR);
     InitWindow(width, height, "Poder");
+
     Camera2D camera = {0};
+    camera.target = (Vector2){ width / 2., height / 2. };
+    camera.offset = (Vector2){ width / 2., height / 2. };
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
+
+    RenderTexture2D texture = LoadRenderTexture(width, height);
 
     while (!WindowShouldClose()) {
-        BeginMode2D(camera);
         BeginDrawing();
         ClearBackground(BLACK);
+
+        camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
+        camera.offset = GetMousePosition(); // no idea if both are required
+        camera.target = GetMousePosition(); // no idea if both are required
+
+        if (camera.zoom > 3.0f) camera.zoom = 3.0f;
+        else if (camera.zoom < 1.f) camera.zoom = 1.f;
 
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < height; j++) {
@@ -270,7 +284,6 @@ int main() {
         }
 
         EndDrawing();
-        EndMode2D();
 
         if (IsKeyPressed(KEY_SPACE)) {
             TakeScreenshot("poder.png");
