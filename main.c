@@ -1,3 +1,4 @@
+#include "zlib/include/zconf.h"
 #include "zlib/include/zlib.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -148,14 +149,32 @@ void recon(uint8_t *data, uint8_t *out, int width, int height, int bpp) {
     free(prev_row);
 }
 
+bool validate_signature(FILE *file) {
+    // 89 PNG(504E47) 0D 0A 1A 0A
+    uint64_t sig = 0x89504E470D0A1A0A;
+
+    uint8_t buff[8];
+
+    if (!fread(buff, CHAR, 8, file)) panic("Couldn't read signature\n");
+
+    uint64_t orig;
+    memcpy(&orig, buff, 8);
+    orig = __builtin_bswap64(orig); // big endian to little endian
+
+    if (sig != orig) return false;
+
+    return true;
+}
+
 int main() {
-    FILE *file = fopen("pngs/juliaSet.png", "rb");
+    FILE *file = fopen("pngs/chart.png", "rb");
     if (file == NULL) {
         perror("fopen");
         exit(69);
     }
 
-    fseek(file, 8, SEEK_SET); // FIXME: skip PNG signature
+    if (!validate_signature(file))
+        panic("Invalid PNG signature\n");
 
     size_t data_cap = sizeof(u_char) * 2048;
     u_char *data = malloc(data_cap); // contains entire IDAT data
@@ -234,6 +253,7 @@ int main() {
     recon(uncompressed, idat, width, height, bpp);
 
     fclose(file);
+    free(uncompressed);
     free(data);
 
     u_char *raw = idat;
@@ -255,6 +275,8 @@ int main() {
             ImageDrawPixel(&image, i, j, color);
         }
     }
+
+    free(idat);
 
     // Raylib shit
     SetTraceLogLevel(LOG_ERROR);
