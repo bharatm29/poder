@@ -149,7 +149,7 @@ void recon(uint8_t *data, uint8_t *out, int width, int height, int bpp) {
 }
 
 int main() {
-    FILE *file = fopen("juliaSet.png", "rb");
+    FILE *file = fopen("pngs/juliaSet.png", "rb");
     if (file == NULL) {
         perror("fopen");
         exit(69);
@@ -222,25 +222,29 @@ int main() {
     printf("image: %ux%u, %u depth and %u color type with %zu bytes data\n",
            width, height, bit_depth, color_type, data_t);
 
-    int bpp = (color_type == 6) ? 4 : 3;
+    int bpp = (color_type == 6) ? 4 : 3; // byte per pixel
 
     // uncompress IDAT chunks
-    u_char *uncompressed = malloc((width * bpp + 1) * height);
-    int bytes =
-        zinflate(data, uncompressed, data_t, (width * bpp + 1) * height);
+    uLong uncomprLen = (width * bpp + 1) * height; // + 1 for filter byte
+    u_char *uncompressed = malloc(uncomprLen);
+    int bytes = zinflate(data, uncompressed, data_t, uncomprLen);
 
     // apply filtering to uncompressed
     uint8_t *idat = malloc(width * height * bpp);
     recon(uncompressed, idat, width, height, bpp);
 
-    Color pixels[width][height];
+    fclose(file);
+    free(data);
+
     u_char *raw = idat;
+    Image image = GenImageColor(width, height, BLACK); // write to image
 
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
             if (!raw)
                 panic("raw is NULL\n");
             Color color;
+            // FIXME: only supporting color_type 6 and 4
             if (color_type == 6) {
                 color = (Color){raw[0], raw[1], raw[2], raw[3]};
                 raw += 4; // one pixel
@@ -248,47 +252,45 @@ int main() {
                 color = (Color){raw[0], raw[1], raw[2], 255};
                 raw += 3; // one pixel
             }
-            pixels[i][j] = color;
+            ImageDrawPixel(&image, i, j, color);
         }
     }
 
-    fclose(file);
-    free(data);
-
+    // Raylib shit
     SetTraceLogLevel(LOG_ERROR);
     InitWindow(width, height, "Poder");
+    SetTargetFPS(60);
 
     Camera2D camera = {0};
-    camera.target = (Vector2){ width / 2., height / 2. };
-    camera.offset = (Vector2){ width / 2., height / 2. };
+    camera.target = (Vector2){width / 2., height / 2.};
+    camera.offset = (Vector2){width / 2., height / 2.};
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
-    RenderTexture2D texture = LoadRenderTexture(width, height);
+    Texture2D texture = LoadTextureFromImage(image);
 
     while (!WindowShouldClose()) {
         BeginDrawing();
-        ClearBackground(BLACK);
+        BeginMode2D(camera);
 
-        camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
+        camera.zoom =
+            expf(logf(camera.zoom) + ((float)GetMouseWheelMove() * 0.1f));
         camera.offset = GetMousePosition(); // no idea if both are required
         camera.target = GetMousePosition(); // no idea if both are required
 
-        if (camera.zoom > 3.0f) camera.zoom = 3.0f;
-        else if (camera.zoom < 1.f) camera.zoom = 1.f;
+        if (camera.zoom > 3.0f)
+            camera.zoom = 3.0f;
+        else if (camera.zoom < 1.f)
+            camera.zoom = 1.f;
 
-        for (int i = 0; i < width; i++) {
-            for (int j = 0; j < height; j++) {
-                DrawPixel(i, j, pixels[i][j]);
-            }
-        }
+        DrawTexture(texture, 0, 0, WHITE);
 
+        EndMode2D();
         EndDrawing();
-
-        if (IsKeyPressed(KEY_SPACE)) {
-            TakeScreenshot("poder.png");
-        }
     }
+
+    UnloadImage(image);
+    UnloadTexture(texture);
 
     CloseWindow();
 }
