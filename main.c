@@ -204,6 +204,7 @@ void render(uint width, uint height, Image image) {
         else if (camera.zoom < 1.f)
             camera.zoom = 1.f;
 
+        ClearBackground(BLACK);
         DrawTexture(texture, 0, 0, WHITE);
 
         EndMode2D();
